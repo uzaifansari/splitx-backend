@@ -20,6 +20,10 @@ group_collection = mydb["groups"]
 app = Flask(__name__)
 CORS(app)
 
+@app.route("/keep-alive", methods=['GET'])
+def keep_alive():
+    return jsonify({"message": "Hello!"})
+
 @app.route('/users', methods=['GET'])
 def users():    
     users_list = []    
