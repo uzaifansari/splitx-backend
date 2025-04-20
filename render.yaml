@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: splitx-backend
+    env: python
+    buildCommand: ""
+    startCommand: gunicorn app:app
+    envVars:
+      - key: MONGO_URI
+        sync: false
