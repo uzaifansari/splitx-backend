@@ -3,7 +3,7 @@ services:
     name: splitx-backend
     env: python
     buildCommand: ""
-    startCommand: gunicorn app:app
+    startCommand: gunicorn server:app
     envVars:
       - key: MONGO_URI
         sync: false
