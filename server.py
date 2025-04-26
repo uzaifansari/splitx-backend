@@ -167,15 +167,46 @@ def get_friend_details(currentUserEmail, friendEmail):
 def friends():
     data = request.get_json()
     user = users_collection.find_one ({"email": data.get('currentUserEmail')})
+    
+    if not user:
+        return jsonify({"message": "invalid user!"}), 400
+    
     currentUserEmail = user.get('email')
-    friends = user.get('friends', [])
+    friends_ids = user.get('friends', [])
     friends_list = []
-    for curr_friend in friends:
-        x = users_collection.find_one ({"_id": curr_friend})
-        if x:
-            curr_friend_email = x.get('email')
-            friend_details = get_friend_details(currentUserEmail, curr_friend_email)
-            friends_list.append(friend_details)
+    
+    for id in friends_ids:
+        friend = users_collection.find_one(
+            {"_id": id},
+            {
+                "expenses": 0,
+                "friends": 0,
+                "password": 0,
+                "_id": 0,
+            }
+        )
+        if friend:
+            curr_friend_email = friend.get('email')
+            
+            common_expenses = list(expense_collection.find(
+                {"split": {"$all": [curr_friend_email, currentUserEmail]}},
+                {"_id": 0}
+            )) or []
+
+            total_balance = 0.0
+            for expense in common_expenses:
+                created_by = expense.get('created_by').get('email')
+                # if expense is created by the logged in user, it means that the friend is in debt to the logged in user.
+                if created_by == currentUserEmail: 
+                    if curr_friend_email not in expense.get('settled_members'):
+                        total_balance += float(expense.get('each_share'))
+
+                # if expense is created by the friend, it means that the logged in user is in debt to the friend.
+                elif created_by == curr_friend_email:
+                    if currentUserEmail not in expense.get('settled_members'):
+                        total_balance -= expense.get('each_share')
+            friend['total_balance'] = total_balance
+            friends_list.append(friend)
 
     return jsonify({"message": "Success!","friends": friends_list}) ,200
 
