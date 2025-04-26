@@ -122,47 +122,6 @@ def new_friend():
     )
     return jsonify({"message": "Success!"}), 200
 
-def get_friend_details(currentUserEmail, friendEmail):
-    currentUser = users_collection.find_one({"email": currentUserEmail})
-    friend = users_collection.find_one({"email": friendEmail})
-
-    if not currentUser or not friend:
-        return None
-
-    # for common expenses (expenses which involves both the logged in user and the selected friend)
-    common_expenses = list(expense_collection.find(
-        {"split": {"$all": [friendEmail, currentUserEmail]}}
-    )) or []
-    
-    for expense in common_expenses:
-        expense['_id'] = str(expense['_id'])
-        if currentUserEmail in expense.get('settled_members'):
-            expense['dues_cleared'] = True
-        else:
-            expense['dues_cleared'] = False
-
-    total_balance = 0 
-    for exp in common_expenses:
-        # if the current expense is paid by the logged_in user, add the share amount to total balance.
-        if exp.get('created_by').get('email') == currentUserEmail:
-            total_balance += exp.get('each_share')
-        # if it is paid by the selected friend, deduct the share amount from total balance, because the logged_in user owe that money to the friend
-        elif exp.get('created_by').get('email') == friendEmail:
-            total_balance -= exp.get('each_share')
-    
-    common_groups = list(group_collection.find(
-        {"members": {"$all": [friend.get('_id', currentUser.get('_id'))] }},
-        {"group_name": 1, "_id": 0}
-    )) or []
-
-    return {
-        "name": friend.get('name'),
-        "email": friend.get('email'),
-        "common_expenses": common_expenses,
-        "common_groups": common_groups,
-        "total_balance": total_balance,
-    }
-
 @app.route("/friends", methods=['POST'])
 def friends():
     data = request.get_json()
@@ -215,9 +174,49 @@ def friend(email):
     data = request.get_json()
     currentUserEmail = data.get('currentUserEmail')
 
-    friend_details = get_friend_details(currentUserEmail, email)
-    if not friend_details:
-        return jsonify({"message": "User or friend not found"}), 404
+    user = users_collection.find_one({"email": data.get('currentUserEmail')})
+    if not user:
+        return jsonify({"message": "invalid user!"}), 400
+    
+    friend = users_collection.find_one({"email": email})
+    if not friend:
+        return jsonify({"message": "friend doesn't exist!"}), 400
+    
+
+    common_expenses = list(expense_collection.find(
+        {"split": {"$all": [email, currentUserEmail]}}
+    )) or []
+    
+    total_balance = 0.0
+    for expense in common_expenses:
+        expense['_id'] = str(expense['_id'])
+        created_by = expense.get('created_by').get('email')
+        # if expense is created by the logged in user, it means that the friend is in debt to the logged in user.
+        if created_by == currentUserEmail:
+            expense['dues_cleared'] = True
+            if email not in expense.get('settled_members'):
+                total_balance += float(expense.get('each_share'))
+
+        # if expense is created by the friend, it means that the logged in user is in debt to the friend.
+        elif created_by == email:
+            if currentUserEmail not in expense.get('settled_members'):
+                total_balance -= expense.get('each_share')
+                expense['dues_cleared'] = False
+            else:
+                expense['dues_cleared'] = True
+
+    common_groups = list(group_collection.find(
+        {"members": {"$all": [friend.get('_id', user.get('_id'))] }},
+        {"group_name": 1, "_id": 0}
+    )) or []
+    
+    friend_details = {
+        "name": friend.get('name'),
+        "email": friend.get('email'),
+        "common_expenses": common_expenses,
+        "common_groups": common_groups,
+        "total_balance": total_balance,
+    }
 
     return jsonify({"message": "Success!", "friend_details": friend_details}), 200
 
