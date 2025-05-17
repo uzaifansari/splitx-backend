@@ -326,6 +326,22 @@ def delete_expense(id):
 
     return jsonify({"message": "success!","deleted_expense": expense})
 
+@app.route("/settle-expense/<string:expense_id>", methods=['PUT'])
+def settle_expense(expense_id):
+    data =  request.get_json()
+    current_user_email = data.get('current_user_email')
+    expense = expense_collection.find_one({"_id": ObjectId(expense_id)})
+
+    if not expense:
+        return jsonify({"message": "expense not found!"})
+    
+    expense_collection.update_one(
+        {"_id": ObjectId(expense_id)},
+        {"$addToSet": {"settled_members": current_user_email}}
+    )
+
+    return jsonify({"message": "You are now settled in " + expense.get('name')})
+
 @app.route("/new-group", methods=['POST'])
 def new_group():
     data = request.get_json()
