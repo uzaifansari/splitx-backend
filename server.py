@@ -5,6 +5,7 @@ import bcrypt
 from bson import ObjectId
 from dotenv import load_dotenv
 import os
+from datetime import datetime, timezone
 
 # Load environment variables
 load_dotenv()
@@ -239,6 +240,9 @@ def new_expense():
     expense['created_by'] = {"email": user.get('email'), "name": user.get('name')}
     expense['settled_members'] = [user.get('email')]
     expense['unsettled_members'] = []
+
+      # ✅ Use timezone-aware UTC datetime
+    expense['created_at'] = datetime.now(timezone.utc).isoformat()
 
     # Add expense to database
     expense_collection.insert_one(expense)
